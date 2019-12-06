@@ -2,29 +2,47 @@ require 'sinatra'
 require 'sinatra/reloader'
 require 'json'
 require 'rack/contrib'
+require "securerandom"
 
 $json = 'json/note.json'
-$json_info = open($json) do |file|
-  JSON.load(file)
+
+def json_file
+  $json_info = open($json) do |file|
+    JSON.load(file)
+  end
 end
 
 $notes = $json_info['notes']
 
-def note(note_id)
-  i = ""
-  $notes.each do |note|
-    if note['id'].to_s == note_id.to_s
-      i = note
-      break
-    end
+def find_id(id)
+  $notes.find do |note|
+    note["id"] == id
   end
-  return i
 end
 
-def update_json
-  File.open("json/note.json", 'w') do |file|    
-    JSON.dump($json_info, file)
+def update_json(new_notes)
+  File.open("json/note.json", 'r+') do |file|
+    JSON.dump({"notes" => new_notes}, file)
   end
+end
+
+def add_note(note)
+  update_json($notes << note)
+end
+
+def delete(id)
+  update_json($notes.delete_if { |note| note["id"] == id })
+end
+
+def edit_note(patch)
+  new_notes = $notes.each_with_object([]) do |note, array|
+    if note["id"] == patch["id"]
+      note["title"] = patch["title"]
+      note["content"] = patch["content"]
+    end
+    array << note
+  end
+  update_json(new_notes)
 end
 
 get "/" do
@@ -36,58 +54,40 @@ get "/add" do
   erb :new
 end
 
-get "/note/:id" do |n|
-  @note = note(n)
+get "/note/:id" do |id|
+  @note = find_id(id)
   erb :show
 end
 
 post "/new" do
   if !params[:title].match(/\A\R|\A\z/)
-    initialized_id = 0
-    $notes.each do |note|
-      if initialized_id <= note['id'].to_i
-        initialized_id = note['id'].to_i + 1
-      end
+    add_note(
+    "id" => SecureRandom.uuid,
+    "title" => params[:title],
+    "content" => params[:content]
+    )
     end
-    added_note = {"id" => initialized_id.to_s, "title" => params[:title], "content" => params[:content]}
-    $json_info['notes'].push(added_note)
-    update_json
-  end
+    redirect '/'
+    erb :index
+end
+
+delete '/note/:id' do |id|
+  delete(id)
   redirect '/'
   erb :index
 end
 
-delete '/note/delete/:id' do |n|
-  count = 0
-  $notes.each do |note|
-    if note['id'].to_s == n.to_s
-      $json_info["notes"].delete_at(count)
-      break
-    end
-    count += 1
-  end
-  update_json
-  redirect '/'
-  erb :index
-end
-
-get '/note/edit/:id' do |n|
-  @note = note(n)
+get '/note/edit/:id' do |id|
+  @note = find_id(id)
   erb :edit
 end
 
-patch '/note/edit2/:id' do
-  added_note = {"id" => params[:id].to_s, "title" => params[:title], "content" => params[:content]}
-  count = 0
-  $notes.each do |note|
-    if note['id'].to_s == params[:id].to_s
-      $json_info["notes"][count]["title"] = added_note["title"]
-      $json_info["notes"][count]["content"] = added_note["content"]
-      break
-    end
-    count += 1
-  end
-  update_json
+patch '/note/editing/:id' do |id|
+  edit_note(
+    "id" => id,
+    "title" => params[:title],
+    "content" => params[:content]
+  )
   redirect '/'
   erb :index
 end
