@@ -19,7 +19,7 @@ def find_id(id)
 end
 
 def update_json(new_notes)
-  File.open("json/note.json", 'r+') do |file|
+  File.open("json/note.json", 'w') do |file|
     JSON.dump({"notes" => new_notes}, file)
   end
 end
@@ -58,8 +58,13 @@ get "/note/:id" do |id|
 end
 
 post "/create" do
-  # if no title then display new memo1 or something
-  if !params[:title].match(/\A\R|\A\z/)
+  if params[:title].match(/\A\R|\A\z/)
+    new_note(
+      "id" => SecureRandom.uuid,
+      "title" => "新規メモ",
+      "content" => params[:content]
+    )
+  else
     new_note(
     "id" => SecureRandom.uuid,
     "title" => params[:title],
