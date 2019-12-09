@@ -4,18 +4,16 @@ require 'json'
 require 'rack/contrib'
 require "securerandom"
 
-$json = 'json/note.json'
-
 def json_file
-  $json_info = open($json) do |file|
+  json = 'json/note.json'
+  json_info = open(json) do |file|
     JSON.load(file)
   end
+  notes = json_info['notes']
 end
 
-$notes = $json_info['notes']
-
 def find_id(id)
-  $notes.find do |note|
+  json_file.find do |note|
     note["id"] == id
   end
 end
@@ -26,16 +24,16 @@ def update_json(new_notes)
   end
 end
 
-def add_note(note)
-  update_json($notes << note)
+def new_note(note)
+  update_json(json_file << note)
 end
 
-def delete(id)
-  update_json($notes.delete_if { |note| note["id"] == id })
+def delete_note(id)
+  update_json(json_file.delete_if { |note| note["id"] == id })
 end
 
 def edit_note(patch)
-  new_notes = $notes.each_with_object([]) do |note, array|
+  new_notes = json_file.each_with_object([]) do |note, array|
     if note["id"] == patch["id"]
       note["title"] = patch["title"]
       note["content"] = patch["content"]
@@ -46,11 +44,11 @@ def edit_note(patch)
 end
 
 get "/" do
-  @notes = $notes
+  @notes = json_file
   erb :index
 end
 
-get "/add" do
+get "/new" do
   erb :new
 end
 
@@ -59,9 +57,10 @@ get "/note/:id" do |id|
   erb :show
 end
 
-post "/new" do
+post "/create" do
+  # if no title then display new memo1 or something
   if !params[:title].match(/\A\R|\A\z/)
-    add_note(
+    new_note(
     "id" => SecureRandom.uuid,
     "title" => params[:title],
     "content" => params[:content]
@@ -72,7 +71,7 @@ post "/new" do
 end
 
 delete '/note/:id' do |id|
-  delete(id)
+  delete_note(id)
   redirect '/'
   erb :index
 end
@@ -82,7 +81,7 @@ get '/note/edit/:id' do |id|
   erb :edit
 end
 
-patch '/note/editing/:id' do |id|
+patch '/note/update/:id' do |id|
   edit_note(
     "id" => id,
     "title" => params[:title],
